@@ -23,38 +23,30 @@ contract MixerCore {
     Recipient[] public pool;
     address public erc20TokenAddress;
     IEncryptedERC20 public ERC20token;
-    // ebool public test;
-    // euint32 public test2;
-    // uint public amount;
 
     constructor(address _erc20TokenAddress) {
         erc20TokenAddress = _erc20TokenAddress;
         ERC20token = IEncryptedERC20(erc20TokenAddress);
     }
 
-
     // Deposits an encrypted amount of ERC-20 with an encrypted recipient.
     function deposit(bytes calldata encryptedRecipient, bytes calldata encryptedAmount) public {
         // Transfer ERC-20 to mixer
         ERC20token.transferFrom(msg.sender, address(this), encryptedAmount);
-        // amount = 1;
         pool.push(Recipient(TFHE.asEuint32(encryptedRecipient), TFHE.asEuint32(encryptedAmount)));
     }
 
     // Withdraws an encrypted amount of ERC-20.
     function withdraw(bytes calldata encryptedAmount) public {
         euint32 encryptedAddress = TFHE.asEuint32(addressTo32Bits(msg.sender));
-        // test2 = encryptedAddress;
 
         uint32 sum = 0;
         for (uint32 i = 0; i < pool.length; i++) {
             sum += i;
             ebool b = TFHE.eq(encryptedAddress, pool[i].encryptedRecipient);
-            // cmux
-            // decrement amount
-            // check if amount is > availableAmount to withdraw
+            //euint32 amountToTransfer = TFHE.cmux(b, pool[i].encryptedAmount, 0);
+            //pool[i].encryptedAmount = TFHE.sub(pool[i].encryptedAmount, amountToTransfer);
             // TFHE.req(b);
-            // test = b;
         }
         ERC20token.transfer(msg.sender, encryptedAmount);
     }
