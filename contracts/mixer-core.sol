@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-
-// TODO:
-// support multi ERC-20 constructor, number of people in the pool
-
 pragma solidity >=0.8.9 <0.9.0;
 
 import "fhevm/abstracts/EIP712WithModifier.sol";
 import "fhevm/lib/TFHE.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IEncryptedERC20 {
     function transferFrom(address from, address to, bytes calldata encryptedAmount) external;
-    function transfer(address to, bytes calldata encryptedAmount) external;
+    function transfer(address to, euint32 encryptedAmount) external;
 }
 
 contract MixerCore {
@@ -37,18 +32,23 @@ contract MixerCore {
     }
 
     // Withdraws an encrypted amount of ERC-20.
-    function withdraw(bytes calldata encryptedAmount) public {
+    function withdraw() public {
         euint32 encryptedAddress = TFHE.asEuint32(addressTo32Bits(msg.sender));
-
-        uint32 sum = 0;
+        euint32 sum = TFHE.asEuint32(0);
         for (uint32 i = 0; i < pool.length; i++) {
-            sum += i;
+            // Note: Hacky temporary fix for faulty cmux type issue
             ebool b = TFHE.eq(encryptedAddress, pool[i].encryptedRecipient);
-            //euint32 amountToTransfer = TFHE.cmux(b, pool[i].encryptedAmount, 0);
-            //pool[i].encryptedAmount = TFHE.sub(pool[i].encryptedAmount, amountToTransfer);
-            // TFHE.req(b);
+            euint8 b2 = TFHE.asEuint8(b);
+            euint32 b3 = TFHE.asEuint32(b2);
+            ebool b4 = ebool.wrap(euint32.unwrap(b3));
+            // Amount to transfer is 0 or the valid amount
+            euint32 amountToTransfer = TFHE.cmux(b4, pool[i].encryptedAmount, TFHE.asEuint32(0));
+            // Add the amount to sum
+            sum = TFHE.add(sum, amountToTransfer);
+            // We reduce by the amount to avoid double spending
+            pool[i].encryptedAmount = TFHE.sub(pool[i].encryptedAmount, amountToTransfer);
         }
-        ERC20token.transfer(msg.sender, encryptedAmount);
+        ERC20token.transfer(msg.sender, sum);
     }
 
     // Function to convert an Ethereum address to a 32-bit representation
